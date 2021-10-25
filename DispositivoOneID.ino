@@ -11,17 +11,18 @@
 #define redLed 13
 #define greenLed 14
 #define blueLed 12
+#define botao 27
 
 //WiFi
-const char* SSID = "Dsuica";
-const char* PASSWORD = "faca1faca2";
+const char* SSID = "BIN 2.4";
+const char* PASSWORD = "95609560";
 WiFiClient wifiClient;
 
 //MQTT Server
 const char* BROKER_MQTT = "broker.hivemq.com";
 int BROKER_PORT = 1883;
 
-#define ID_MQTT  "clientId-kIXFqW4TAM"
+#define ID_MQTT  "disp_oneid" // Codigo do Dispositivo
 #define TOPIC_PUB "bgmbnewgen8462/oneid/empresa/request"
 #define TOPIC_SUB "bgmbnewgen8462/oneid/empresa/response"
 //#define userJuridico "NewGen"
@@ -49,6 +50,8 @@ void setup() {
   conectaWiFi();
   MQTT.setServer(BROKER_MQTT, BROKER_PORT);
   MQTT.setCallback(recebePacote);
+  pinMode(botao, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(botao), verificaBotaoServico, RISING);
 }
 
 void loop() {
@@ -80,6 +83,31 @@ void loop() {
         }
         break;
     }
+  }
+}
+
+void verificaBotaoServico()
+{
+  if (canInterrupt()) {
+    if (servico == "1") {
+      servico = "2";
+      for (int i = 1; i >= 2; i++)
+      {
+        estadoLedPositivoTag();
+        delayMicroseconds(1000);
+        estadoLedAguadandoTag();
+        delayMicroseconds(1000);
+        estadoLedPositivoTag();
+        delayMicroseconds(1000);
+        estadoLedAguadandoTag();
+      }
+    } else {
+      servico = "1";
+      estadoLedPositivoTag();
+      delayMicroseconds(1000);
+      estadoLedAguadandoTag();
+    }
+    Serial.println(servico);
   }
 }
 
@@ -128,6 +156,7 @@ bool canInterrupt() {
 
 void mantemConexoes() {
   if (!MQTT.connected()) {
+    estado = 1;
     conectaMQTT();
   }
 
@@ -139,7 +168,7 @@ void conectaWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     return;
   }
-
+  estado = 1;
   Serial.print("Conectando-se na rede: ");
   Serial.print(SSID);
   Serial.println("  Aguarde!");
@@ -154,8 +183,9 @@ void conectaWiFi() {
     if ((millis() - millisWifi) > 2000) {
       millisWifi = millis();
     }
-    if ((millis() - tempoAguradaWifi) > 15000) {
-      mantemConexoes();
+    if ((millis() - tempoAguradaWifi) > 10000) {
+      tempoAguradaWifi = millis();
+      conectaWiFi();
     }
   }
 
@@ -175,6 +205,7 @@ void conectaMQTT() {
       MQTT.subscribe(TOPIC_SUB);
     }
     else {
+      estado = 1;
       Serial.println("Nao foi possivel se conectar ao broker.");
       Serial.println("Nova tentatica de conexao em 10s");
       delay(10000);
@@ -207,13 +238,13 @@ void deserializeJsonMessage(String msg)
     return;
   }
 
-  String idDispositivo = doc["idDispositivo"]; // 0
+  String codDispositivo = doc["codDispositivo"]; // 0
   int resultado = doc["resultado"];
-  controlaResultado(resultado, idDispositivo);
+  controlaResultado(resultado, codDispositivo);
 }
 
-void controlaResultado(int resultado,String idDispositivo) {
-  if (idDispositivo == ID_MQTT) {
+void controlaResultado(int resultado, String codDispositivo) {
+  if (codDispositivo == ID_MQTT) {
     switch (resultado)
     {
       case 1:
